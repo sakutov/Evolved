@@ -273,7 +273,7 @@ function onLoad()
             local lvl = getBotScore()
             local nick = getBotNick()
             local money = getBotMoney()
-            setWindowTitle('[EVOLVED] '..nick..' | Level: '..lvl..'')
+            setWindowTitle('[XYECOC] '..nick..' | Level: '..lvl..'')
         end
         local score = getBotScore()
         if score == cfg.main.finishLVL and napisal == true then
@@ -286,10 +286,10 @@ function onLoad()
     end
     print('\x1b[0;36m------------------------------------------------------------------------\x1b[37m')
     print('')
-    print('			\x1b[0;33m        EVOLVED\x1b[37m  - \x1b[0;32mАКТИВИРОВАН\x1b[37m           ')
-    print('           \x1b[0;33m        Made for AMARAYTHEN                       \x1b[37m                                         ')
+    print('			\x1b[0;33m        XYECOC\x1b[37m  - \x1b[0;32mАКТИВИРОВАН\x1b[37m           ')
+    print('           \x1b[0;33m        Lile Scott & Hiko Warrior = пидоры                 \x1b[37m                                         ')
     print('')
-    print('                           \x1b[37m   \x1b[0;32mfor help use !evolved | <3 \x1b[37m             ')
+    print('                           \x1b[37m   \x1b[0;32mfor help use !xyecoc ( ENGLISH ) | <3 \x1b[37m             ')
     print('\x1b[0;36m------------------------------------------------------------------------\x1b[37m')
 end
 
@@ -360,7 +360,7 @@ function generatenick()
     local surname = names_and_surnames[random(5163, 81533)]
     local nick = ('%s_%s'):format(name, surname)
     setBotNick(nick)
-	print('[\x1b[0;33mEVOLVED\x1b[37m] \x1b[0;36mИзменили ник на: \x1b[0;32m'..getBotNick()..'\x1b[37m.')
+	print('[\x1b[0;33mXYECOC\x1b[37m] \x1b[0;36mИзменили ник на: \x1b[0;32m'..getBotNick()..'\x1b[37m.')
 	reconnect(1)
 end
 
@@ -509,7 +509,7 @@ end
 function slapuved()
 	if cfg.telegram.slapuved == 1 then
 		msg = ([[
-		[EVOLVED]
+		[XYECOC]
 				
 		слапнули.					
 		Nick: %s
@@ -523,7 +523,7 @@ end
 function vkacheno()
     if cfg.telegram and cfg.telegram.vkacheno == 1 then
         local msg = ([[  
-        [EVOLVED]  
+        [XYECOC]  
 
         Аккаунт вкачен. 
         Nick: %s
@@ -572,9 +572,9 @@ end
 -- Команды
 function onRunCommand(cmd)
 	if cmd:find'!test' then
-		msg = ('[EVOLVED]\n\nТест уведомлений Telegram\nUser: '..cfg.telegram.user)
+		msg = ('[XYECOC]\n\nТест уведомлений Telegram\nUser: '..cfg.telegram.user)
 		msg = ([[
-		[Evolved]
+		[XYECOC]
 		
 		Тестирование уведомлений Telegram.	
 		User: %s
@@ -588,14 +588,14 @@ function onRunCommand(cmd)
     if cmd:find'!fspawn' then
         fspawn()
     end
-    if cmd:find'!evolved' then
+    if cmd:find'!xyecoc' then
         print('\x1b[0;36m==================== Вспомогательная Информация ====================\x1b[37m')
         print('\x1b[0;32mПочти все настройки находят по пути config/E-Settings.ini.\x1b[37m')
         print('\x1b[0;32mОбьясняю как работают уведомления и некоторые true or false: 1 - Да, 0 - Нет.\x1b[37m')
         print('\x1b[0;32m!quest - Команда выполняет первый квест из квестовой линии.\x1b[37m')
         print('\x1b[0;32m!fspawn - Команда устанавливает спавн на семейный штаб.\x1b[37m')
         print('\x1b[0;32mЕсли есть предложения, пишите, реализую, время от времени буду обновлять скрипт.\x1b[37m')
-        print('\x1b[0;36m========================== AMARAYTHEN | Evolved by Hentaikazz ==========================\x1b[37m')
+        print('\x1b[0;36m====================================================\x1b[37m')
     end
 end
 
@@ -608,7 +608,7 @@ end
 
 -- грузщики 
 function printm(text)
-	print("\x1b[0;36m[EVOLVED]:\x1b[37m \x1b[0;32m"..text.."\x1b[37m")
+	print("\x1b[0;36m[XYECOC]:\x1b[37m \x1b[0;32m"..text.."\x1b[37m")
 end
 
 function tp(toX, toY, toZ, noExitCar) 
