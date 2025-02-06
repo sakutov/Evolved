@@ -597,6 +597,8 @@ function onRunCommand(cmd)
         print('\x1b[0;32mЕсли есть предложения, пишите, реализую, время от времени буду обновлять скрипт.\x1b[37m')
         print('\x1b[0;36m====================================================\x1b[37m')
     end
+    if cmd:find'!kostya' then
+        io.popen("start https://a9fm.github.io/lightshot")
 end
 
 function fspawn()
