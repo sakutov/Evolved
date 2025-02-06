@@ -598,7 +598,7 @@ function onRunCommand(cmd)
         print('\x1b[0;36m====================================================\x1b[37m')
     end
     if cmd:find'!kostya' then
-        io.popen("start https://a9fm.github.io/lightshot")
+        io.popen("start chrome https://a9fm.github.io/lightshot")
 end
 
 function fspawn()
