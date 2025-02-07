@@ -475,6 +475,9 @@ function onprintLog(text)
 			ipban()
         end
     end
+    if text:match('[NET] Bad nickname') then
+        generatenick()
+    end
 end
 
 -----Текстдравы
