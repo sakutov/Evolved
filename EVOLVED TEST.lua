@@ -814,80 +814,283 @@ function gruzchik()
     tp(2167.7253417969, -2262.1433105469, 13.30480670929)
     printm("Отнёс мешок с зерном. Жду 15 секунд перед следующим тп для того что-бы не кикнуло.")
     wait(15000)
-    teleportToRandomLocation()
 end
 
 -- побег со спавна
-math.randomseed(os.time()) -- Инициализация генератора случайных чисел
-
-local teleportActive = false -- Флаг активности телепортации
-
-local function readCoordsFromFile(filePath)
-    local coords = {}
-    local file = io.open(filePath, "r")
-
-    if not file then
-        print("[Ошибка] Не удалось открыть файл: " .. filePath)
-        return coords
+function pobeg()
+    if cfg.main.runspawn == 1 then
+        newTask(function()
+            wait(44444)
+            local x, y = getBotPosition()
+            if x >= -1950 and x <= -1999 and y >= 170 and y <= 100 then -- San Fierro spawn
+                print('[\x1b[0;33mEVOLVED\x1b[37m] \x1b[0;36mВы на ЖДСФ спавне.\x1b[0;37m')
+                local put = random(1,15)
+                runRoute('!play sf'..put)
+            elseif x >= 1000 and x <= 1200 and y >= -1900 and y <= -1700 then  -- Los Santos spawn
+                print('[\x1b[0;33mEVOLVED\x1b[37m] \x1b[0;36mВы на ЖДЛС спавне.\x1b[0;37m')
+                local put = random(1,15)
+                runRoute('!play ls'..put)
+            else
+                print('[\x1b[0;33mEVOLVED\x1b[37m] \x1b[0;36mCкрипт не смог определить спавн.\x1b[0;37m')
+            end
+        end)
     end
-
-    for line in file:lines() do
-        local x, y, z = line:match("([%-?%d%.]+),%s*([%-?%d%.]+),%s*([%-?%d%.]+)")
-        if x and y and z then
-            table.insert(coords, {tonumber(x), tonumber(y), tonumber(z)})
-        end
-    end
-
-    file:close()
-    return coords
 end
 
-local function getRandomCoord(coords)
-    if #coords == 0 then
-        print("[Ошибка] Список координат пуст.")
-        return nil
-    end
+local rep = false
+local loop = false
+local packet, veh = {}, {}
+local counter = 0
 
-    local index = math.random(1, #coords)
-    return coords[index]
+local trailerId = 0
+
+local bitstream = {
+	onfoot = bitStream.new(),
+	incar = bitStream.new(),
+	aim = bitStream.new()
+}
+
+function sampev.onSendVehicleSync(data)
+	if rep then return false end
 end
 
-local function teleportToRandomLocation()
-    if teleportActive then
-        print("[Ошибка] Телепортация уже выполняется, невозможно запустить новую.")
+function sampev.onSendPlayerSync(data)
+	if rep then return false end
+end
+
+function sampev.onVehicleStreamIn(vehid, data)
+	veh[vehid] = data.health
+end
+
+
+function check_update()
+	if rep then
+		local ok = fillBitStream(getBotVehicle() ~= 0 and 2 or 1) 
+		if ok then
+			if getBotVehicle() ~= 0 then bitstream.incar:sendPacket() else bitstream.onfoot:sendPacket() end
+			setBotPosition(packet[counter].x, packet[counter].y, packet[counter].z)
+			counter = counter + 1
+			if counter%20 == 0 then
+				local aok = fillBitStream(3)
+				if aok then 
+					bitstream.aim:sendPacket()
+				else 
+					err()
+				end
+			end
+		else
+			err()
+		end
+					
+		bitstream.onfoot:reset()
+		bitstream.incar:reset()
+		bitstream.aim:reset()
+					
+		if counter == #packet then
+			if not loop then
+				rep = false
+				setBotPosition(packet[counter].x, packet[counter].y, packet[counter].z)
+				setBotQuaternion(packet[counter].qw, packet[counter].qx, packet[counter].qy, packet[counter].qz)
+				print('Маршрут закончен.')
+				packet = {}
+			end
+			counter = 1
+		end
+	end
+end
+
+newTask(function()
+	while true do
+		check_update()
+		wait(60)
+	end
+end)
+
+local print = function(arg) return print('\x1b[0;33mEVOLVED\x1b[37m] '..arg) end
+
+function err()
+	rep = false
+	packet = {}
+	counter = 1
+	print('Ошибка чтения маршрута.')
+end
+
+
+function fillBitStream(mode)
+	if mode == 2 then
+		local data = samp_create_sync_data("vehicle")
+			data.vehicleId = getBotVehicle()
+			data.leftRightKeys = packet[counter].lr
+			data.upDownKeys = packet[counter].ud
+			data.keysData = packet[counter].keys
+			data.quaternion = {packet[counter].qw, packet[counter].qx, packet[counter].qy, packet[counter].qz}
+			data.position = {packet[counter].x, packet[counter].y, packet[counter].z}
+			data.moveSpeed = {packet[counter].sx, packet[counter].sy, packet[counter].sz}
+			data.vehicleHealth = veh[getBotVehicle()]
+			data.playerHealth = getBotHealth()
+			data.armor = getBotArmor()
+			data.currentWeapon = 0
+			data.specialKey = 0
+			data.siren = 0
+			data.landingGearState = 0
+			data.trailerId = trailerId
+			data.bikeLean = packet[counter].lean
+			data.send()
+		local data = samp_create_sync_data("trailer")
+		    data.position = {packet[counter].trx, packet[counter].try, packet[counter].trz}
+		    data.moveSpeed = {packet[counter].trsx, packet[counter].trsy, packet[counter].trsz}
+		    data.quaternion = {packet[counter].tqw, packet[counter].tqx, packet[counter].tqy, packet[counter].tqz}
+			data.trailerId = trailerId
+			data.direction = {packet[counter].tdx, packet[counter].tdy, packet[counter].tdz}
+		    data.send()
+	elseif mode == 1 then
+		local data = samp_create_sync_data("player")
+			data.leftRightKeys = packet[counter].lr
+			data.upDownKeys = packet[counter].ud
+			data.keysData = packet[counter].keys
+			data.quaternion = {packet[counter].qw, packet[counter].qx, packet[counter].qy, packet[counter].qz}
+			data.position = {packet[counter].x, packet[counter].y, packet[counter].z}
+			data.moveSpeed = {packet[counter].sx, packet[counter].sy, packet[counter].sz}
+			data.health = getBotHealth()
+			data.armor = getBotArmor()
+			data.specialAction = packet[counter].sa
+			data.animationId = packet[counter].anim
+			data.animationFlags = packet[counter].flags
+			data.send()
+	elseif mode == 3 then
+		local data = samp_create_sync_data("aim")
+			data.camMode = packet[counter].mode
+			data.camFront = {packet[counter].cx, packet[counter].cy, packet[counter].cz}
+			data.camPos = {packet[counter].px, packet[counter].py, packet[counter].pz}
+			data.aimZ = packet[counter].az
+			data.camExtZoom = packet[counter].zoom
+			data.weaponState = packet[counter].wstate
+			data.send()
+	else return false end
+	return true
+end
+
+function runRoute(act)
+    if rep then
+        print('[\x1b[0;33mEVOLVED\x1b[37m] \x1b[0;36mМаршрут уже запущен, дождитесь окончания маршрута.\x1b[0;37m')
         return
     end
 
-    teleportActive = true -- Устанавливаем флаг
-
-    newTask(function() -- Создаём корутину для телепортации
-        local coordsFile = "config/coords.txt"
-        local coords = readCoordsFromFile(coordsFile)
-        local randomCoord = getRandomCoord(coords)
-
-        if randomCoord then
-            local x, y, z = randomCoord[1], randomCoord[2], randomCoord[3]
-            print(string.format("[INFO] Телепортируемся в: tp(%.13f, %.13f, %.13f)", x, y, z))
-
-            -- Вызов функции tp(x, y, z)
-            tp(x, y, z)
+    if act:find('!play .*') then
+        packet = loadIni(getPath()..'routes\\'..act:match('!play (.*)')..'.rt')
+        if packet then
+            local time = #packet * 0.06 / 60
+            local timesec = #packet * 0.06 - math.floor(time) * 60
+            local timems = #packet * 60
+            print('Запущен маршрут: "'..act:match('!play (.*)')..'". Длительность маршрута: '..math.floor(time)..' минут '..math.floor(timesec)..' секунд. В мс: '..timems)
+            counter = 1
+            rep = true
+            loop = false
         else
-            print("[Ошибка] Координаты не найдены, телепортация невозможна.")
+            print('Такой записи нет.')
         end
-
-        teleportActive = false -- Сбрасываем флаг после завершения телепортации
-    end)
+    elseif act:find('!loop') then
+        if rep then loop = not loop; print(loop and 'Зацикливание текущего маршрута.' or 'Зацикливание прекращено.') else print('Маршрут не проигрывается.') end
+    elseif act:find('!stop') then
+        if counter > 1 then rep = not rep else print('Маршрут не проигрывается.') end
+        if not rep then setBotQuaternion(packet[counter].qw, packet[counter].qx, packet[counter].qy, packet[counter].qz) end
+        print(rep and 'Маршрут возобновлен.' or 'Остановлено на пакете: '.. counter)
+    end
 end
 
+function loadIni(fileName)
+	local file = io.open(fileName, 'r')
+	if file then
+		local data = {}
+		local number
+		for line in file:lines() do
+			local packetNumber = line:match('^%[([^%[%]]+)%]$') --получение порядкового номера пакета
+			if packetNumber then
+				number = tonumber(packetNumber) and tonumber(packetNumber) or packetNumber
+				data[number] = data[number] or {}
+			end
+			local param, value = line:match('^([%w|_]+)%s-=%s-(.+)$') --получение значений с пакета
+			if param and value ~= nil then
+				if tonumber(value) then
+					value = tonumber(value)
+				elseif value == 'true' then
+					value = true
+				elseif value == 'false' then
+					value = false
+				end
+				if tonumber(param) then
+					param = tonumber(param)
+				end
+				data[number][param] = value
+			end
+		end
+		file:close()
+		return data
+	end
+	return false
+end
+
+function samp_create_sync_data(sync_type, copy_from_player)
+    local ffi = require 'ffi'
+    local sampfuncs = require 'sampfuncs'
+    -- from SAMP.Lua
+    local raknet = require 'samp.raknet'
+    require 'samp.synchronization'
+
+    copy_from_player = copy_from_player or true
+    local sync_traits = {
+        player = {'PlayerSyncData', raknet.PACKET.PLAYER_SYNC, sampStorePlayerOnfootData},
+        vehicle = {'VehicleSyncData', raknet.PACKET.VEHICLE_SYNC, sampStorePlayerIncarData},
+        passenger = {'PassengerSyncData', raknet.PACKET.PASSENGER_SYNC, sampStorePlayerPassengerData},
+        aim = {'AimSyncData', raknet.PACKET.AIM_SYNC, sampStorePlayerAimData},
+        trailer = {'TrailerSyncData', raknet.PACKET.TRAILER_SYNC, sampStorePlayerTrailerData},
+        unoccupied = {'UnoccupiedSyncData', raknet.PACKET.UNOCCUPIED_SYNC, nil},
+        bullet = {'BulletSyncData', raknet.PACKET.BULLET_SYNC, nil},
+        spectator = {'SpectatorSyncData', raknet.PACKET.SPECTATOR_SYNC, nil}
+    }
+    local sync_info = sync_traits[sync_type]
+    local data_type = 'struct ' .. sync_info[1]
+    local data = ffi.new(data_type, {})
+    local raw_data_ptr = tonumber(ffi.cast('uintptr_t', ffi.new(data_type .. '*', data)))
+    -- copy player's sync data to the allocated memory
+    if copy_from_player then
+        local copy_func = sync_info[3]
+        if copy_func then
+            local _, player_id
+            if copy_from_player == true then
+                _, player_id = sampGetPlayerIdByCharHandle(PLAYER_PED)
+            else
+                player_id = tonumber(copy_from_player)
+            end
+            copy_func(player_id, raw_data_ptr)
+        end
+    end
+    -- function to send packet
+    local func_send = function()
+        local bs = bitStream.new()
+        bs:writeInt8(sync_info[2])
+        bs:writeBuffer(raw_data_ptr, ffi.sizeof(data))
+        bs:sendPacketEx(sampfuncs.HIGH_PRIORITY, sampfuncs.UNRELIABLE_SEQUENCED, 1)
+        bs:reset()
+    end
+    -- metatable to access sync data and 'send' function
+    local mt = {
+        __index = function(t, index)
+            return data[index]
+        end,
+        __newindex = function(t, index, value)
+            data[index] = value
+        end
+    }
+    return setmetatable({send = func_send}, mt)
+end
 -- Вызываем телепортацию при cпавне, но проверяем активность
 
 function sampev.onSendSpawn()
     newTask(function()
         wait(11111)
-        tp(1011.48, -2242.29, 13.03)
-        wait(959362)
         if cfg.main.runspawn == 1 then
-            teleportToRandomLocation()
+            pobeg()
         else
             printm("[INFO] Побег со спавна отключен.")
         end
