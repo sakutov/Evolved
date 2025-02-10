@@ -12,8 +12,139 @@ local requests = require('requests')
 local json = require('dkjson')
 local ffi = require('ffi')
 local socket = require 'socket'
-local inicfg = require('inicfg')
-local cfg = inicfg.load(nil, 'E-Settings')
+local ini = require("inicfg")
+local lfs = require("lfs")  -- Работа с файловой системой
+
+local config_dir = "config"
+local config_path = config_dir .. "/E-Settings.ini"
+
+-- Ожидаемая структура ini файла
+local default_config = {
+    main = {
+        password = "12341234",
+        randomnick = 0,
+        finishLVL = 3,
+        proxy = 0,
+        runspawn = 1,
+        famspawn = 0
+    },
+    telegram = {
+        tokenbot = "7789934788:AAEfANeSW6kwLcR0New29CXImZ-hETmAWCE",
+        chatid = "-4688677211",
+        user = "@your_username"
+    }
+}
+
+-- Проверка существования папки
+local function ensureDirectoryExists(dir)
+    local attr = lfs.attributes(dir)
+    if not attr then
+        print("[INFO] Директория '" .. dir .. "' не найдена. Создаём...")
+        local success, err = lfs.mkdir(dir)
+        if not success then
+            print("[ERROR] Не удалось создать директорию: " .. err)
+            return false
+        end
+    end
+    return true
+end
+
+-- Проверка и загрузка ini файла
+function checkAndLoadIni()
+    if not ensureDirectoryExists(config_dir) then
+        return nil  -- Если не удалось создать директорию, возвращаем nil
+    end
+
+    -- Проверка наличия INI файла
+    local config
+    if not lfs.attributes(config_path) then
+        print("[INFO] INI файл отсутствует. Создаём новый.")
+        config = default_config
+
+        -- Печатаем дополнительные отладочные данные для проверки
+        print("[INFO] Путь для сохранения файла: " .. config_path)
+        print("[INFO] Проверка прав на запись в папку...")
+        local test_file = io.open(config_path, "w")
+        if test_file then
+            test_file:close()
+            print("[INFO] Права на запись в папку проверены. Продолжаем.")
+        else
+            print("[ERROR] Нет прав на запись в папку. Проверьте разрешения.")
+            return nil
+        end
+
+        -- Сохраняем новый INI файл
+        local success, err = pcall(function()
+            ini.save(config, config_path)
+        end)
+
+        if not success then
+            print("[ERROR] Ошибка при создании INI файла: " .. err)
+            return nil
+        else
+            print("[INFO] INI файл успешно создан.")
+        end
+    else
+        -- Загружаем конфиг
+        config = ini.load(nil, "E-Settings")
+        local needSave = false
+
+        -- Если конфиг загружен, проверяем параметры и добавляем недостающие
+        for section, params in pairs(default_config) do
+            if not config[section] then
+                config[section] = {}
+                needSave = true
+            end
+            for key, value in pairs(params) do
+                if config[section][key] == nil then
+                    print("[INFO] Добавлен параметр: " .. section .. "." .. key)
+                    config[section][key] = value
+                    needSave = true
+                end
+            end
+        end
+
+        -- Удаление лишних параметров
+        for section, params in pairs(config) do
+            if default_config[section] then
+                for key in pairs(params) do
+                    if default_config[section][key] == nil then
+                        print("[INFO] Удалён лишний параметр: " .. section .. "." .. key)
+                        config[section][key] = nil
+                        needSave = true
+                    end
+                end
+            else
+                print("[INFO] Удалён лишний раздел: " .. section)
+                config[section] = nil
+                needSave = true
+            end
+        end
+
+        -- Сохраняем изменения, если они были
+        if needSave then
+            print("[INFO] Попытка сохранить INI файл в путь: " .. config_path)
+            local success, err = pcall(function()
+                ini.save(config, config_path)
+            end)
+
+            if not success then
+                print("[ERROR] Ошибка при сохранении INI файла: " .. err)
+            else
+                print("[INFO] INI файл обновлён.")
+            end
+        else
+            print("[INFO] INI файл загружен без изменений.")
+        end
+    end
+
+    return config
+end
+
+-- Загружаем конфигурацию
+local cfg = checkAndLoadIni()
+
+-- telegramm
 
 local configtg = {
     token = cfg.telegram.tokenbot,
@@ -37,13 +168,13 @@ function pressSpecialKey(key)
 end
 
 function sampev.onSendPlayerSync(data)
-	if rep then
-		return false
-	end
-	if specialKey then
-		data.specialKey = specialKey
-		specialKey = nil
-	end
+    if rep then
+        return false
+    end
+    if specialKey then
+        data.specialKey = specialKey
+        specialKey = nil
+    end
 end
 
 -- Proxy
@@ -156,7 +287,6 @@ if cfg.main.proxy == 1 then
     load_proxys("config\\proxy.txt")
     connect_random_proxy()
 end
-
 ----------------------------------------------------------------ЗАЩИТА----------------------------------------------------------------
 
 -- Функция для получения серийного номера жесткого диска для Windows
@@ -490,8 +620,14 @@ function sampev.onShowTextDraw(id, data)
 	if id == 462 then
         sendClickTextdraw(462)
     end
-	if id == 2084 then
-		sendClickTextdraw(2084) -- 2084 дефолт спавн, 2080 спавн семьи
+	if id == 2080 then
+        if cfg.main.famspawn == 1 then
+		    sendClickTextdraw(2080)
+            print('[EVOLVED] Появились на спавне семьи.')
+        else
+            sendClickTextdraw(2084) -- 2084 дефолт спавн, 2080 спавн семьи
+            print('[EVOLVED] Появились на дефолт спавне, так как спавн семьи отключен.')
+        end
 	end
 	if id == 2164 then
 		sendClickTextdraw(2164)
@@ -510,66 +646,71 @@ function sampev.onSetPlayerPos(position)
 end
 
 function slapuved()
-	if cfg.telegram.slapuved == 1 then
-		msg = ([[
-		[XYECOC]
+	msg = ([[
+	[EVOLVED]
 				
-		слапнули.					
-		Nick: %s
-        Server: %s
-		User: %s
-		]]):format(getBotNick(), servername, cfg.telegram.user)
-		newTask(sendtg, false, msg)
-	end
+	слапнули.					
+	Nick: %s
+    Server: %s
+	User: %s
+	]]):format(getBotNick(), servername, cfg.telegram.user)
+	newTask(sendtg, false, msg)
 end
 
 function vkacheno()
-    if cfg.telegram and cfg.telegram.vkacheno == 1 then
-        local msg = ([[  
-        [XYECOC]  
+    local msg = ([[  
+    [EVOLVED]  
 
-        Аккаунт вкачен. 
-        Nick: %s
-        LVL: %s
-        Server: %s
-        User: %s  
-        ]]):format(getBotNick(), getBotScore(), servername, cfg.telegram.user)
+    Аккаунт вкачен. 
+    Nick: %s
+    LVL: %s
+    Server: %s
+    User: %s  
+    ]]):format(getBotNick(), getBotScore(), servername, cfg.telegram.user)
 
-        sendtg(msg)
-    end
+    sendtg(msg)
 end
 
 function noipban()
-	if cfg.telegram.noipban == 1 then
-		msg = ([[
-		[FUCK U BITCHEZZ]
+	msg = ([[
+	[EVOLVED]
 		
-		Аккаунт заблокировали.	
-		Nick: %s
-        Server: %s
-		User: %s
-		]]):format(getBotNick(), servername, cfg.telegram.user)
-		newTask(sendtg, false, msg)
-	end
+	Аккаунт заблокировали.	
+	Nick: %s
+    Server: %s
+	User: %s
+	]]):format(getBotNick(), servername, cfg.telegram.user)
+	newTask(sendtg, false, msg)
 	generatenick()
 end
 
 function ipban()
-	if cfg.telegram.ipbanuved == 1 then
-		msg = ([[
-		[FUCK U BITCHEZZ]
+	msg = ([[
+	[EVOLVED]
 		
-		Аккаунт заблокировали по IP.	
-		Nick: %s
-        IP: %s
-        Server: %s
-        User: %s
-			
-		Аккаунт прожил: %s ч. %s мин. %s с.
-		]]):format(getBotNick(), my_proxy_ip, servername, cfg.telegram.user)
-		newTask(sendtg, false, msg)
-	end
+	Аккаунт заблокировали по IP.	
+    Nick: %s
+    IP: %s
+    Server: %s
+    User: %s
+		
+	]]):format(getBotNick(), my_proxy_ip, servername, cfg.telegram.user)
+	newTask(sendtg, false, msg)
     generatenick()
+end
+
+function test()
+    msg = ([[
+	[EVOLVED]
+		
+	    ТЕСТОВОЕ УВЕДОМЛЕНИЕ О РАБОТЕ.
+        	
+	   Nick: %s
+    Server: %s
+    User: %s
+			
+	]]):format(getBotNick(), servername, cfg.telegram.user)
+	newTask(sendtg, false, msg)
 end
 
 -- Команды
