@@ -75,35 +75,33 @@ function saveProxyUsage(proxy_usage)
 end
 
 -- Функция для обновления статистики использования прокси
-function updateProxyUsage(proxy_ip)
+function updateProxyUsage(proxy_ip, server_ip)
     local proxy_usage = loadProxyUsage()
     
-    -- Если прокси уже есть в статистике
-    if proxy_usage[proxy_ip] then
-        proxy_usage[proxy_ip].count = proxy_usage[proxy_ip].count + 1
-        proxy_usage[proxy_ip].last_used = os.time()  -- Обновляем время последнего использования
+    if not proxy_usage[proxy_ip] then
+        proxy_usage[proxy_ip] = {}
+    end
+    
+    if proxy_usage[proxy_ip][server_ip] then
+        proxy_usage[proxy_ip][server_ip].count = proxy_usage[proxy_ip][server_ip].count + 1
+        proxy_usage[proxy_ip][server_ip].last_used = os.time()
     else
-        -- Если прокси нет, добавляем его в статистику
-        proxy_usage[proxy_ip] = { count = 1, last_used = os.time() }
+        proxy_usage[proxy_ip][server_ip] = { count = 1, last_used = os.time() }
     end
 
-    -- Сохраняем обновлённую статистику
     saveProxyUsage(proxy_usage)
 end
 
--- Функция для проверки статистики и ограничения на подключение
-function checkProxyLimit(proxy_ip)
+-- Функция для проверки лимита подключений по прокси и серверу
+function checkProxyLimit(proxy_ip, server_ip)
     local proxy_usage = loadProxyUsage()
     
-    -- Если прокси есть в статистике, проверяем количество подключений
-    if proxy_usage[proxy_ip] then
-        if proxy_usage[proxy_ip].count >= 2 then
-            print("[Ошибка] Превышено максимальное количество подключений для IP: " .. proxy_ip)
-            connect_random_proxy()  -- Ограничение на подключение с этого IP
+    if proxy_usage[proxy_ip] and proxy_usage[proxy_ip][server_ip] then
+        if proxy_usage[proxy_ip][server_ip].count >= 2 then
+            print("[Ошибка] Превышено максимальное количество подключений для IP: " .. proxy_ip .. " на сервере " .. server_ip)
+            return false
         end
     end
-
-    -- Если количество подключений не превышает 2, разрешаем подключение
     return true
 end
 
@@ -112,13 +110,15 @@ function connect_random_proxy()
     if isProxyConnected() then
         proxyDisconnect()
     end
+    
     local new_proxy = proxys[math.random(1, #proxys)]
     my_proxy_ip = new_proxy.ip
+    server_ip = getServerAddress()
 
     -- Проверяем лимит подключений
-    if checkProxyLimit(my_proxy_ip) then
+    if checkProxyLimit(my_proxy_ip, server_ip) then
         proxyConnect(new_proxy.ip, new_proxy.user, new_proxy.pass)
-        updateProxyUsage(my_proxy_ip)  -- Обновляем статистику использования прокси
+        updateProxyUsage(my_proxy_ip, server_ip)  -- Обновляем статистику использования прокси
     else
         print("[Ошибка] Подключение с этим прокси невозможно из-за ограничения на количество подключений.")
     end
@@ -130,7 +130,7 @@ function split(inputstr, sep)
         sep = "%s"
     end
     local t={}
-
+    
     for str in string.gmatch(inputstr, "([^"..sep.."]+)") do
         table.insert(t, str)
     end
